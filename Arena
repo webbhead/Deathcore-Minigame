@@ -1,0 +1,180 @@
+package me.webbhead.deathcore;
+
+import me.webbhead.deathcore.Arena.ArenaState;
+import me.webbhead.deathcore.MessageManager.MessageType;
+import org.bukkit.Bukkit;
+import org.bukkit.Location;
+import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.entity.Player;
+import org.bukkit.inventory.ItemStack;
+
+import java.util.ArrayList;
+
+public class Arena {
+
+    public enum ArenaState { DISABLED, WAITING, COUNTING_DOWN, STARTED; }
+
+    private int id, numPlayers, currentPlayers = 0;
+    protected ArenaState state = ArenaState.DISABLED;
+    private ArrayList<PlayerData> data;
+    private Location spawnPoint;
+
+    protected Arena(int id) {
+        this.id = id;
+        this.data = new ArrayList<PlayerData>();
+        this.numPlayers = SettingsManager.getInstance().get("arenas." + id + ".numPlayers");
+
+        ConfigurationSection s = SettingsManager.getInstance().get("arenas." + id + ".spawn");
+        spawnPoint = new Location(
+                Bukkit.getServer().getWorld(s.getString("world")),
+                s.getDouble("x"),
+                s.getDouble("y"),
+                s.getDouble("z"),
+                (float) s.getDouble("pitch"),
+                (float) s.getDouble("yaw")
+        );
+
+        ConfigurationSection ss = SettingsManager.getInstance().get("arenas." + id + ".start");
+        spawnPoint = new Location(
+                Bukkit.getServer().getWorld(s.getString("world")),
+                ss.getDouble("x"),
+                ss.getDouble("y"),
+                ss.getDouble("z"),
+                (float) ss.getDouble("pitch"),
+                (float) ss.getDouble("yaw")
+        );
+
+        state = ArenaState.WAITING;
+    }
+
+    public int getID() {
+        return id;
+    }
+
+    public ArenaState getState() {
+        return state;
+    }
+
+    public void addPlayer(Player p) {
+        if (currentPlayers >= numPlayers) {
+            MessageManager.getInstance().msg(p, MessageType.BAD, "There are too many players.");
+            return;
+        }
+
+        data.add(new PlayerData(p));
+
+        p.getInventory().clear();
+        // Add wand.
+
+        p.teleport(spawnPoint);
+
+        currentPlayers++;
+    }
+
+    public void removePlayer(Player p) {
+        PlayerData d = getPlayerData(p);
+        d.restorePlayer();
+        data.remove(d);
+
+        currentPlayers--;
+    }
+
+    public void start() {
+        this.state = ArenaState.COUNTING_DOWN;
+        final Countdown c = new Countdown(30, "Game starting in %t seconds!", this, 30, 20, 10, 5, 4, 3, 2, 1);
+        final int id = 0;
+        Bukkit.getServer().getScheduler().scheduleSyncRepeatingTask(SettingsManager.getInstance().getPlugin(), new Runnable() {
+            public void run() {
+                if (!c.isDone()) c.run();
+                else Bukkit.getServer().getScheduler().cancelTask(id);
+            }
+        }, 0, 20);
+    }
+
+    public void stop() {
+        for (PlayerData pd : data) pd.restorePlayer();
+    }
+
+    public boolean containsPlayer(Player p) {
+        return getPlayerData(p) != null;
+    }
+
+    private PlayerData getPlayerData(Player p) {
+        for (PlayerData d : data) {
+            if (d.isForPlayer(p)) return d;
+        }
+        return null;
+    }
+
+    protected void sendMessage(MessageType type, String... messages) {
+        for (PlayerData d : data) MessageManager.getInstance().msg(d.getPlayer(), type, messages);
+    }
+}
+
+class PlayerData {
+
+    private String playerName;
+    private ItemStack[] contents, armorContents;
+    private Location location;
+
+    protected PlayerData(Player p) {
+        this.playerName = p.getName();
+        this.contents = p.getInventory().getContents();
+        this.armorContents = p.getInventory().getArmorContents();
+        this.location = p.getLocation();
+    }
+
+    protected Player getPlayer() {
+        return Bukkit.getServer().getPlayer(playerName);
+    }
+
+    protected void restorePlayer() {
+        Player p = Bukkit.getServer().getPlayer(playerName);
+
+        p.getInventory().setContents(contents);
+        p.getInventory().setArmorContents(armorContents);
+        p.teleport(location);
+    }
+
+    protected boolean isForPlayer(Player p) {
+        return playerName.equalsIgnoreCase(p.getName());
+    }
+}
+
+class Countdown implements Runnable {
+
+    private boolean isDone = false;
+    public Location startPoint;
+    private int timer;
+    public Player p;
+    private String msg;
+    private Arena a;
+    private ArrayList<Integer> countingNums;
+
+    public Countdown(int start, String msg, Arena a, int... countingNums) {
+        this.timer = start;
+        this.msg = msg;
+        this.a = a;
+        this.countingNums = new ArrayList<Integer>();
+        for (int i : countingNums) this.countingNums.add(i);
+    }
+
+    public void run() {
+        if (timer == 0) {
+            a.sendMessage(MessageType.GOOD, "The game has begun!");
+            p.teleport(startPoint);
+            a.state = ArenaState.STARTED;
+            isDone = true;
+            return;
+        }
+        if (countingNums.contains(timer)) {
+            a.sendMessage(MessageType.INFO, msg.replaceAll("%t", timer + ""));
+        }
+
+        timer--;
+    }
+
+    public boolean isDone() {
+        return isDone;
+    }
+}
