@@ -1,0 +1,48 @@
+package me.webbhead.deathcore;
+
+import org.bukkit.ChatColor;
+import org.bukkit.command.CommandSender;
+import org.bukkit.entity.Player;
+
+/**
+ * @Author webbhead.
+ */
+public class MessageManager {
+
+    public void msg(Player p, String s) {
+
+    }
+
+    public enum MessageType {
+
+        INFO(ChatColor.GOLD),
+        GOOD(ChatColor.DARK_GREEN),
+        BAD(ChatColor.DARK_RED);
+
+        private ChatColor color;
+
+        MessageType(ChatColor color) {
+            this.color = color;
+        }
+
+        public ChatColor getColor() {
+            return color;
+        }
+    }
+
+    private MessageManager() { }
+
+    private static MessageManager instance = new MessageManager();
+
+    public static MessageManager getInstance() {
+        return instance;
+    }
+
+    private String prefix = ChatColor.DARK_GRAY + "[" + ChatColor.DARK_RED + "Deathcore" + ChatColor.DARK_GRAY + "] ";
+
+    public void msg(CommandSender sender, MessageType type, String... messages) {
+        for (String msg : messages) {
+            sender.sendMessage(prefix + type.getColor() + msg);
+        }
+    }
+}
