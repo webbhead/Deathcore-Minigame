@@ -1,4 +1,0 @@
-Deathcore-Minigame
-==================
-
-Deathcore.
